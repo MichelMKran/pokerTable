@@ -2,7 +2,6 @@
 // CONFIG
 // =====================================================
 const MONTE_CARLO_ITERS = 15000;
-const MAX_PLAYERS = 10;
 
 const RANKS = "23456789TJQKA";
 const SUITS = "shdc";
@@ -29,7 +28,7 @@ document.getElementById("dealTurnBtn").onclick = dealTurn;
 document.getElementById("dealRiverBtn").onclick = dealRiver;
 
 // =====================================================
-// CARD / DECK
+// DECK
 // =====================================================
 function rankVal(r){ return RANKS.indexOf(r); }
 
@@ -100,7 +99,7 @@ function dealRiver(){
 }
 
 // =====================================================
-// HAND EVALUATOR (7-CARD)
+// HAND EVALUATOR (7-card)
 // =====================================================
 function evaluate7(cards) {
   const rs = cards.map(c=>rankVal(c[0])).sort((a,b)=>b-a);
@@ -148,23 +147,20 @@ function evaluate7(cards) {
 }
 
 // =====================================================
-// EQUITY ENGINE
+// EQUITY
 // =====================================================
 function runEquity(){
   const wins = Array(numPlayers).fill(0);
   const known = [...board, ...players.flat()];
 
-  // RIVER → exact
   if(board.length===5){
     const scores = players.map(p=>evaluate7([...p,...board]));
     const max = Math.max(...scores);
     const n = scores.filter(s=>s===max).length;
-    scores.forEach((s,i)=>wins[i]=s===max?100/n:0);
-    updateTable(wins);
+    updateTable(scores.map(s=>s===max?100/n:0));
     return;
   }
 
-  // Monte Carlo
   for(let i=0;i<MONTE_CARLO_ITERS;i++){
     const d = buildDeck(known);
     shuffle(d);
@@ -180,9 +176,6 @@ function runEquity(){
   updateTable(wins.map(w=>w/MONTE_CARLO_ITERS*100));
 }
 
-// =====================================================
-// UI
-// =====================================================
 function updateTable(eq){
   equityBody.innerHTML="";
   players.forEach((p,i)=>{
@@ -196,76 +189,21 @@ function updateTable(eq){
   });
 }
 
-function drawSeat(x, y, isDealer) {
-  const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
-  c.setAttribute("cx", x);
-  c.setAttribute("cy", y);
-  c.setAttribute("r", 22);
-  c.setAttribute("fill", isDealer ? "gold" : "#444");
-  c.setAttribute("stroke", "#fff");
-  c.setAttribute("stroke-width", 2);
-  svg.appendChild(c);
-}
-
-function drawPlayerLabel(x, y, text) {
-  const t = document.createElementNS("http://www.w3.org/2000/svg","text");
-  t.setAttribute("x", x);
-  t.setAttribute("y", y);
-  t.setAttribute("text-anchor", "middle");
-  t.setAttribute("dominant-baseline", "middle");
-  t.setAttribute("fill", "#fff");
-  t.setAttribute("font-size", "13");
-  t.textContent = text;
-  svg.appendChild(t);
-}
-
-
-function getSeatNames(n, dealer) {
-  const names = [];
-
-  if (n < 2) return names;
-
+// =====================================================
+// POSITIONS (CORRECT POKER LOGIC)
+// =====================================================
+function getPositions(n, dealer) {
+  const full = ["BTN","SB","BB","UTG","UTG+1","LJ","HJ","CO"];
   const order = [];
-  for (let i = 0; i < n; i++) {
-    order.push((dealer + i) % n);
-  }
-
-  const base =
-    n === 2 ? ["BTN/SB", "BB"] :
-    n === 3 ? ["BTN", "SB", "BB"] :
-    ["BTN", "SB", "BB"];
-
-  order.forEach((p, i) => {
-    if (i < base.length) names[p] = base[i];
-    else names[p] = `UTG${i === 3 ? "" : "+" + (i - 3)}`;
-  });
-
-  return names;
+  for(let i=0;i<n;i++) order.push((dealer+i)%n);
+  const pos = {};
+  order.forEach((p,i)=>pos[p]=full[i]);
+  return pos;
 }
 
-
-function drawDealerButton(x, y) {
-  const r = 10;
-
-  const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
-  c.setAttribute("cx", x + 30);
-  c.setAttribute("cy", y - 30);
-  c.setAttribute("r", r);
-  c.setAttribute("fill", "#fff");
-  c.setAttribute("stroke", "#000");
-  svg.appendChild(c);
-
-  const t = document.createElementNS("http://www.w3.org/2000/svg","text");
-  t.setAttribute("x", x + 30);
-  t.setAttribute("y", y - 26);
-  t.setAttribute("text-anchor", "middle");
-  t.setAttribute("font-size", "10");
-  t.setAttribute("fill", "#000");
-  t.textContent = "D";
-  svg.appendChild(t);
-}
-
-
+// =====================================================
+// DRAWING
+// =====================================================
 function drawAll(){
   svg.innerHTML="";
   const w=900,h=600,cx=w/2,cy=h/2;
@@ -275,42 +213,51 @@ function drawAll(){
   const table=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
   table.setAttribute("cx",cx);
   table.setAttribute("cy",cy);
-  table.setAttribute("rx",350);
-  table.setAttribute("ry",200);
+  table.setAttribute("rx",360);
+  table.setAttribute("ry",210);
   table.setAttribute("fill","#0b5133");
   svg.appendChild(table);
 
-  board.forEach((c,i)=>{
-    drawCard(cx-100+i*50,cy-30,c);
+  board.forEach((c,i)=>drawCard(cx-110+i*55,cy-30,c));
+
+  const positions = getPositions(numPlayers, dealerIndex);
+
+  players.forEach((p,i)=>{
+    const a=i/numPlayers*2*Math.PI-Math.PI/2;
+    const x=cx+330*Math.cos(a);
+    const y=cy+190*Math.sin(a);
+
+    drawSeat(x,y);
+    drawText(x,y-6,`P${i}`,13);
+    drawText(x,y+12,positions[i],11);
+
+    if(i===dealerIndex) drawDealerButton(x,y);
+
+    p.forEach((c,j)=>drawCard(x-28+j*32,y+34,c));
   });
+}
 
-const seatNames = getSeatNames(numPlayers, dealerIndex);
+function drawSeat(x,y){
+  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  c.setAttribute("cx",x);
+  c.setAttribute("cy",y);
+  c.setAttribute("r",30);
+  c.setAttribute("fill","#444");
+  c.setAttribute("stroke","#fff");
+  c.setAttribute("stroke-width",2);
+  svg.appendChild(c);
+}
 
-players.forEach((p, i) => {
-  const angle = i / numPlayers * 2 * Math.PI - Math.PI / 2;
-  const x = cx + 320 * Math.cos(angle);
-  const y = cy + 180 * Math.sin(angle);
+function drawDealerButton(x,y){
+  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  c.setAttribute("cx",x+42);
+  c.setAttribute("cy",y-42);
+  c.setAttribute("r",14);
+  c.setAttribute("fill","#fff");
+  c.setAttribute("stroke","#000");
+  svg.appendChild(c);
 
-  // Seat
-  drawSeat(x, y, false);
-
-  // Player number inside seat
-  drawPlayerLabel(x, y - 4, `P${i}`);
-
-  // Seat name below player number
-  drawPlayerLabel(x, y + 12, seatNames[i]);
-
-  // Dealer button
-  if (i === dealerIndex) {
-    drawDealerButton(x, y);
-  }
-
-  // Hole cards
-  p.forEach((c, j) => {
-    drawCard(x - 25 + j * 30, y + 30, c);
-  });
-});
-
+  drawText(x+42,y-37,"D",12,"#000");
 }
 
 function drawCard(x,y,c){
@@ -319,15 +266,22 @@ function drawCard(x,y,c){
   r.setAttribute("y",y);
   r.setAttribute("width",40);
   r.setAttribute("height",60);
-  r.setAttribute("fill","#fff");
   r.setAttribute("rx",5);
+  r.setAttribute("fill","#fff");
   svg.appendChild(r);
 
+  drawText(x+20,y+35,c[0]+SUIT_SYMBOLS[c[1]],14,
+    ["h","d"].includes(c[1])?"red":"black");
+}
+
+function drawText(x,y,text,size,color="#fff"){
   const t=document.createElementNS("http://www.w3.org/2000/svg","text");
-  t.setAttribute("x",x+20);
-  t.setAttribute("y",y+35);
+  t.setAttribute("x",x);
+  t.setAttribute("y",y);
   t.setAttribute("text-anchor","middle");
-  t.setAttribute("fill",["h","d"].includes(c[1])?"red":"black");
-  t.textContent=c[0]+SUIT_SYMBOLS[c[1]];
+  t.setAttribute("dominant-baseline","middle");
+  t.setAttribute("font-size",size);
+  t.setAttribute("fill",color);
+  t.textContent=text;
   svg.appendChild(t);
 }
