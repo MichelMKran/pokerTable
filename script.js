@@ -1,259 +1,242 @@
-// ====== Setup ======
-const suits = ["♠","♥","♦","♣"];
-const suitsShort = ["s","h","d","c"];
-const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
+// =====================================================
+// CONFIG
+// =====================================================
+const MONTE_CARLO_ITERS = 15000;
+const MAX_PLAYERS = 10;
 
+const RANKS = "23456789TJQKA";
+const SUITS = "shdc";
+const SUIT_SYMBOLS = { s:"♠", h:"♥", d:"♦", c:"♣" };
+
+// =====================================================
+// STATE
+// =====================================================
 let numPlayers = 6;
 let dealerIndex = 0;
-let deck = [];
 let players = [];
 let board = [];
+let deck = [];
 
-const playersInput = document.getElementById("players");
-const dealerInput = document.getElementById("dealer");
+// =====================================================
+// DOM
+// =====================================================
 const svg = document.getElementById("pokerTable");
+const equityBody = document.querySelector("#equityTable tbody");
 
-const cardWidth = 40;
-const cardHeight = 60;
-const seatRadius = 25;
-const MONTE_CARLO_ITERS = 5000; // adjust for accuracy/speed
+document.getElementById("dealHoleBtn").onclick = dealHole;
+document.getElementById("dealFlopBtn").onclick = dealFlop;
+document.getElementById("dealTurnBtn").onclick = dealTurn;
+document.getElementById("dealRiverBtn").onclick = dealRiver;
 
-// ====== Buttons ======
-document.getElementById("dealHoleBtn").addEventListener("click", dealHoleCards);
-document.getElementById("dealFlopBtn").addEventListener("click", dealFlop);
-document.getElementById("dealTurnBtn").addEventListener("click", dealTurn);
-document.getElementById("dealRiverBtn").addEventListener("click", dealRiver);
+// =====================================================
+// CARD / DECK
+// =====================================================
+function rankVal(r){ return RANKS.indexOf(r); }
 
-// ====== Deck Utils ======
-function createDeck() {
+function buildDeck(exclude = []) {
   const d = [];
-  for(let s=0;s<4;s++){
-    for(let r of ranks){
-      d.push({symbol:r+suits[s], solver:r+suitsShort[s]});
+  for (let r of RANKS)
+    for (let s of SUITS) {
+      const c = r + s;
+      if (!exclude.includes(c)) d.push(c);
     }
-  }
   return d;
 }
 
-function shuffle(d){
-  for(let i=d.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [d[i],d[j]]=[d[j],d[i]];
+function shuffle(a){
+  for (let i=a.length-1;i>0;i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
   }
 }
 
-function getCardColor(card){ return (/♥|♦/.test(card.symbol))?"red":"black"; }
-
-// ====== Deal Functions ======
-function dealHoleCards(){
-  numPlayers = Number(playersInput.value);
-  dealerIndex = Number(dealerInput.value) % numPlayers;
-
-  deck = createDeck();
-  shuffle(deck);
+// =====================================================
+// DEALING
+// =====================================================
+function dealHole(){
+  numPlayers = Number(document.getElementById("players").value);
+  dealerIndex = Number(document.getElementById("dealer").value) % numPlayers;
 
   players = Array.from({length:numPlayers},()=>[]);
   board = [];
 
-  let pos = (dealerIndex+1)%numPlayers;
-  for(let round=0;round<2;round++){
-    for(let i=0;i<numPlayers;i++){
-      players[pos].push(deck.pop());
-      pos=(pos+1)%numPlayers;
+  deck = buildDeck();
+  shuffle(deck);
+
+  let p = (dealerIndex + 1) % numPlayers;
+  for (let r=0;r<2;r++){
+    for (let i=0;i<numPlayers;i++){
+      players[p].push(deck.pop());
+      p = (p+1)%numPlayers;
     }
   }
 
-  renderAll();
+  drawAll();
+  runEquity();
 }
 
 function dealFlop(){
-  if(board.length>0) return;
-  deck.pop(); // burn
-  board.push(deck.pop(),deck.pop(),deck.pop());
-  renderAll();
+  if (board.length !== 0) return;
+  deck.pop();
+  board.push(deck.pop(), deck.pop(), deck.pop());
+  drawAll();
+  runEquity();
 }
 
 function dealTurn(){
-  if(board.length!==3) return;
-  deck.pop(); // burn
+  if (board.length !== 3) return;
+  deck.pop();
   board.push(deck.pop());
-  renderAll();
+  drawAll();
+  runEquity();
 }
 
 function dealRiver(){
-  if(board.length!==4) return;
-  deck.pop(); // burn
+  if (board.length !== 4) return;
+  deck.pop();
   board.push(deck.pop());
-  renderAll();
+  drawAll();
+  runEquity();
 }
 
-// ====== Draw Table ======
-function drawTable(){
+// =====================================================
+// HAND EVALUATOR (7-CARD)
+// =====================================================
+function evaluate7(cards) {
+  const rs = cards.map(c=>rankVal(c[0])).sort((a,b)=>b-a);
+  const ss = cards.map(c=>c[1]);
+
+  const count = {};
+  rs.forEach(r=>count[r]=(count[r]||0)+1);
+
+  const groups = Object.entries(count)
+    .map(([r,c])=>({r:+r,c}))
+    .sort((a,b)=>b.c-a.c || b.r-a.r);
+
+  function straight(arr){
+    const u=[...new Set(arr)];
+    if (u[0]===12) u.push(-1);
+    for(let i=0;i<=u.length-5;i++)
+      if(u[i]-u[i+4]===4) return u[i];
+    return null;
+  }
+
+  let flushSuit=null;
+  for(let s of SUITS)
+    if(ss.filter(x=>x===s).length>=5) flushSuit=s;
+
+  if(flushSuit){
+    const fr=cards.filter(c=>c[1]===flushSuit)
+      .map(c=>rankVal(c[0])).sort((a,b)=>b-a);
+    const sf=straight(fr);
+    if(sf!==null) return 9e6+sf;
+  }
+
+  if(groups[0].c===4) return 8e6+groups[0].r*100+groups[1].r;
+  if(groups[0].c===3 && groups[1].c>=2)
+    return 7e6+groups[0].r*100+groups[1].r;
+  if(flushSuit) return 6e6+rs.slice(0,5).reduce((a,b,i)=>a+b*15**(4-i),0);
+  const st=straight(rs);
+  if(st!==null) return 5e6+st;
+  if(groups[0].c===3)
+    return 4e6+groups[0].r*225+groups[1].r*15+groups[2].r;
+  if(groups[0].c===2 && groups[1].c===2)
+    return 3e6+groups[0].r*225+groups[1].r*15+groups[2].r;
+  if(groups[0].c===2)
+    return 2e6+groups[0].r*3375+groups[1].r*225+groups[2].r*15+groups[3].r;
+  return rs.slice(0,5).reduce((a,b,i)=>a+b*15**(4-i),0);
+}
+
+// =====================================================
+// EQUITY ENGINE
+// =====================================================
+function runEquity(){
+  const wins = Array(numPlayers).fill(0);
+  const known = [...board, ...players.flat()];
+
+  // RIVER → exact
+  if(board.length===5){
+    const scores = players.map(p=>evaluate7([...p,...board]));
+    const max = Math.max(...scores);
+    const n = scores.filter(s=>s===max).length;
+    scores.forEach((s,i)=>wins[i]=s===max?100/n:0);
+    updateTable(wins);
+    return;
+  }
+
+  // Monte Carlo
+  for(let i=0;i<MONTE_CARLO_ITERS;i++){
+    const d = buildDeck(known);
+    shuffle(d);
+    const b=[...board];
+    while(b.length<5) b.push(d.pop());
+
+    const scores = players.map(p=>evaluate7([...p,...b]));
+    const max = Math.max(...scores);
+    const n = scores.filter(s=>s===max).length;
+    scores.forEach((s,i)=>{ if(s===max) wins[i]+=1/n; });
+  }
+
+  updateTable(wins.map(w=>w/MONTE_CARLO_ITERS*100));
+}
+
+// =====================================================
+// UI
+// =====================================================
+function updateTable(eq){
+  equityBody.innerHTML="";
+  players.forEach((p,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>P${i}</td>
+      <td>${p.map(c=>c[0]+SUIT_SYMBOLS[c[1]]).join(" ")}</td>
+      <td>${eq[i].toFixed(1)}%</td>
+    `;
+    equityBody.appendChild(tr);
+  });
+}
+
+function drawAll(){
   svg.innerHTML="";
-  const width=900,height=600;
-  svg.setAttribute("width",width);
-  svg.setAttribute("height",height);
+  const w=900,h=600,cx=w/2,cy=h/2;
+  svg.setAttribute("width",w);
+  svg.setAttribute("height",h);
 
-  const cx = width/2, cy=height/2;
-  const rx = Math.max(300,numPlayers*35), ry = Math.max(150,numPlayers*20);
+  const table=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
+  table.setAttribute("cx",cx);
+  table.setAttribute("cy",cy);
+  table.setAttribute("rx",350);
+  table.setAttribute("ry",200);
+  table.setAttribute("fill","#0b5133");
+  svg.appendChild(table);
 
-  const tableEllipse=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
-  tableEllipse.setAttribute("cx",cx);
-  tableEllipse.setAttribute("cy",cy);
-  tableEllipse.setAttribute("rx",rx);
-  tableEllipse.setAttribute("ry",ry);
-  tableEllipse.setAttribute("fill","#0b5133");
-  tableEllipse.setAttribute("stroke","#fff");
-  tableEllipse.setAttribute("stroke-width","4");
-  svg.appendChild(tableEllipse);
-
-  // Board cards
   board.forEach((c,i)=>{
-    const spacing=cardWidth+10;
-    const x=cx-(board.length*spacing)/2+i*spacing+5;
-    const y=cy-cardHeight/2;
-    appendCardSVG(x,y,c);
+    drawCard(cx-100+i*50,cy-30,c);
   });
 
-  // Player seats
-  players.forEach((cards,i)=>{
-    const angle=(i/numPlayers)*2*Math.PI-Math.PI/2;
-    const x=cx+rx*Math.cos(angle);
-    const y=cy+ry*Math.sin(angle);
-
-    appendSeatSVG(x,y, i===dealerIndex);
-    appendLabelSVG(x,y, `P${i}`);
-
-    const holeSpacing=(numPlayers>=8?cardWidth+10:cardWidth+5);
-    const totalWidth=holeSpacing*cards.length-(holeSpacing-cardWidth);
-    const startX=x-totalWidth/2;
-    cards.forEach((card,j)=>appendCardSVG(startX+j*holeSpacing, y+seatRadius+5, card));
+  players.forEach((p,i)=>{
+    const a=i/numPlayers*2*Math.PI-Math.PI/2;
+    const x=cx+320*Math.cos(a);
+    const y=cy+180*Math.sin(a);
+    p.forEach((c,j)=>drawCard(x-25+j*30,y+20,c));
   });
 }
 
-function appendCardSVG(x,y,card){
-  const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
-  rect.setAttribute("x",x);
-  rect.setAttribute("y",y);
-  rect.setAttribute("width",cardWidth);
-  rect.setAttribute("height",cardHeight);
-  rect.setAttribute("fill","#fff");
-  rect.setAttribute("stroke","#000");
-  rect.setAttribute("rx",5);
-  rect.setAttribute("ry",5);
-  svg.appendChild(rect);
+function drawCard(x,y,c){
+  const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  r.setAttribute("x",x);
+  r.setAttribute("y",y);
+  r.setAttribute("width",40);
+  r.setAttribute("height",60);
+  r.setAttribute("fill","#fff");
+  r.setAttribute("rx",5);
+  svg.appendChild(r);
 
-  const text=document.createElementNS("http://www.w3.org/2000/svg","text");
-  text.setAttribute("x",x+cardWidth/2);
-  text.setAttribute("y",y+cardHeight/2+5);
-  text.setAttribute("text-anchor","middle");
-  text.setAttribute("fill",getCardColor(card));
-  text.textContent=card.symbol;
-  text.setAttribute("font-size","14");
-  svg.appendChild(text);
+  const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+  t.setAttribute("x",x+20);
+  t.setAttribute("y",y+35);
+  t.setAttribute("text-anchor","middle");
+  t.setAttribute("fill",["h","d"].includes(c[1])?"red":"black");
+  t.textContent=c[0]+SUIT_SYMBOLS[c[1]];
+  svg.appendChild(t);
 }
-
-function appendSeatSVG(x,y,isDealer){
-  const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
-  circle.setAttribute("cx",x);
-  circle.setAttribute("cy",y);
-  circle.setAttribute("r",seatRadius);
-  circle.setAttribute("fill",isDealer?"gold":"#444");
-  circle.setAttribute("stroke","#fff");
-  svg.appendChild(circle);
-}
-
-function appendLabelSVG(x,y,textStr){
-  const text=document.createElementNS("http://www.w3.org/2000/svg","text");
-  text.setAttribute("x",x);
-  text.setAttribute("y",y);
-  text.setAttribute("text-anchor","middle");
-  text.setAttribute("dominant-baseline","middle");
-  text.setAttribute("fill","#fff");
-  text.textContent=textStr;
-  text.setAttribute("font-size","14");
-  svg.appendChild(text);
-}
-
-// ====== Equity Table ======
-function fillEquityTablePlaceholders(){
-  const tbody=document.querySelector("#equityTable tbody");
-  tbody.innerHTML="";
-  players.forEach((cards,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>P${i}</td><td>${cards.map(c=>c.symbol).join(" ")}</td><td>--</td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function updateEquityTable(equities){
-  const tbody=document.querySelector("#equityTable tbody");
-  tbody.innerHTML="";
-  players.forEach((cards,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>P${i}</td><td>${cards.map(c=>c.symbol).join(" ")}</td><td>${equities[i].toFixed(1)}%</td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-// ====== Monte Carlo Equity ======
-function monteCarloEquity(iters=MONTE_CARLO_ITERS){
-  const wins=Array(numPlayers).fill(0);
-  const ties=Array(numPlayers).fill(0);
-
-  const known=players.flat().map(c=>c.solver).concat(board.map(c=>c.solver));
-
-  for(let it=0; it<iters; it++){
-    // create remaining deck
-    let deckSim = createDeck().filter(c=>!known.includes(c.solver));
-    shuffle(deckSim);
-
-    // simulate board
-    const simBoard=[...board];
-    while(simBoard.length<5) simBoard.push(deckSim.pop());
-
-    // evaluate hands
-    const scores = players.map(ph=>{
-      const cardsStr = ph.map(c=>c.solver).concat(simBoard.map(c=>c.solver));
-      const hand = PokerEvaluator.evalHand(cardsStr);
-      return hand.value;
-    });
-
-    const minScore = Math.min(...scores);
-    const winners = [];
-    scores.forEach((v,i)=>{ if(v===minScore) winners.push(i); });
-
-    winners.forEach(w=>{
-      if(winners.length===1) wins[w]++;
-      else ties[w]++;
-    });
-  }
-
-  return wins.map((w,i)=>(w + ties[i]/numPlayers)/iters*100);
-}
-
-// ====== Render All ======
-function renderAll(){
-  drawTable();
-  fillEquityTablePlaceholders();
-
-  if(board.length<5){
-    setTimeout(()=>{
-      const equities = monteCarloEquity();
-      updateEquityTable(equities);
-    },10);
-  } else {
-    // river winner 100%/0%
-    const scores = players.map(ph=>{
-      const cardsStr = ph.map(c=>c.solver).concat(board.map(c=>c.solver));
-      const hand = PokerEvaluator.evalHand(cardsStr);
-      return hand.value;
-    });
-    const minScore = Math.min(...scores);
-    const winnerIndex = scores.findIndex(v=>v===minScore);
-    updateEquityTable(players.map((_,i)=>i===winnerIndex?100:0));
-  }
-}
-
-// ====== Initial Deal ======
-dealHoleCards();
