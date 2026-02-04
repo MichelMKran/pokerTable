@@ -196,6 +196,30 @@ function updateTable(eq){
   });
 }
 
+function drawSeat(x, y, isDealer) {
+  const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
+  c.setAttribute("cx", x);
+  c.setAttribute("cy", y);
+  c.setAttribute("r", 22);
+  c.setAttribute("fill", isDealer ? "gold" : "#444");
+  c.setAttribute("stroke", "#fff");
+  c.setAttribute("stroke-width", 2);
+  svg.appendChild(c);
+}
+
+function drawPlayerLabel(x, y, text) {
+  const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+  t.setAttribute("x", x);
+  t.setAttribute("y", y);
+  t.setAttribute("text-anchor", "middle");
+  t.setAttribute("dominant-baseline", "middle");
+  t.setAttribute("fill", "#fff");
+  t.setAttribute("font-size", "13");
+  t.textContent = text;
+  svg.appendChild(t);
+}
+
+
 function drawAll(){
   svg.innerHTML="";
   const w=900,h=600,cx=w/2,cy=h/2;
@@ -214,12 +238,22 @@ function drawAll(){
     drawCard(cx-100+i*50,cy-30,c);
   });
 
-  players.forEach((p,i)=>{
-    const a=i/numPlayers*2*Math.PI-Math.PI/2;
-    const x=cx+320*Math.cos(a);
-    const y=cy+180*Math.sin(a);
-    p.forEach((c,j)=>drawCard(x-25+j*30,y+20,c));
+players.forEach((p,i)=>{
+  const a = i / numPlayers * 2 * Math.PI - Math.PI / 2;
+  const x = cx + 320 * Math.cos(a);
+  const y = cy + 180 * Math.sin(a);
+
+  // seat + dealer highlight
+  drawSeat(x, y, i === dealerIndex);
+
+  // player label inside seat
+  drawPlayerLabel(x, y, `P${i}`);
+
+  // hole cards below seat
+  p.forEach((c,j)=>{
+    drawCard(x - 25 + j * 30, y + 28, c);
   });
+});
 }
 
 function drawCard(x,y,c){
