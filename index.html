@@ -1,0 +1,34 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Poker Table Simulator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="controls">
+  Players: <input type="number" id="players" value="6" min="2" max="10">
+  Dealer: <input type="number" id="dealer" value="0" min="0">
+  <button id="dealHoleBtn">Deal Hole Cards</button>
+  <button id="dealFlopBtn">Deal Flop</button>
+  <button id="dealTurnBtn">Deal Turn</button>
+  <button id="dealRiverBtn">Deal River</button>
+</div>
+
+<svg id="pokerTable"></svg>
+
+<table id="equityTable">
+  <thead>
+    <tr><th>Player</th><th>Cards</th><th>Equity</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- Load poker-evaluator locally -->
+<script src="poker-evaluator.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

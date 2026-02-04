@@ -1,0 +1,34 @@
+body {
+  background-color: #0a2f1a;
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
+}
+
+.controls {
+  margin: 20px;
+}
+
+svg {
+  display: block;
+  margin: 0 auto;
+  border: 1px solid #333;
+  background-color: #064820;
+}
+
+table {
+  margin: 20px auto;
+  border-collapse: collapse;
+  background-color: #074d2d;
+}
+
+th, td {
+  border: 1px solid #fff;
+  padding: 5px 10px;
+  text-align: center;
+  color: #fff;
+}
+
+th {
+  background-color: #0b5133;
+}
