@@ -220,6 +220,52 @@ function drawPlayerLabel(x, y, text) {
 }
 
 
+function getSeatNames(n, dealer) {
+  const names = [];
+
+  if (n < 2) return names;
+
+  const order = [];
+  for (let i = 0; i < n; i++) {
+    order.push((dealer + i) % n);
+  }
+
+  const base =
+    n === 2 ? ["BTN/SB", "BB"] :
+    n === 3 ? ["BTN", "SB", "BB"] :
+    ["BTN", "SB", "BB"];
+
+  order.forEach((p, i) => {
+    if (i < base.length) names[p] = base[i];
+    else names[p] = `UTG${i === 3 ? "" : "+" + (i - 3)}`;
+  });
+
+  return names;
+}
+
+
+function drawDealerButton(x, y) {
+  const r = 10;
+
+  const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
+  c.setAttribute("cx", x + 30);
+  c.setAttribute("cy", y - 30);
+  c.setAttribute("r", r);
+  c.setAttribute("fill", "#fff");
+  c.setAttribute("stroke", "#000");
+  svg.appendChild(c);
+
+  const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+  t.setAttribute("x", x + 30);
+  t.setAttribute("y", y - 26);
+  t.setAttribute("text-anchor", "middle");
+  t.setAttribute("font-size", "10");
+  t.setAttribute("fill", "#000");
+  t.textContent = "D";
+  svg.appendChild(t);
+}
+
+
 function drawAll(){
   svg.innerHTML="";
   const w=900,h=600,cx=w/2,cy=h/2;
@@ -238,22 +284,33 @@ function drawAll(){
     drawCard(cx-100+i*50,cy-30,c);
   });
 
-players.forEach((p,i)=>{
-  const a = i / numPlayers * 2 * Math.PI - Math.PI / 2;
-  const x = cx + 320 * Math.cos(a);
-  const y = cy + 180 * Math.sin(a);
+const seatNames = getSeatNames(numPlayers, dealerIndex);
 
-  // seat + dealer highlight
-  drawSeat(x, y, i === dealerIndex);
+players.forEach((p, i) => {
+  const angle = i / numPlayers * 2 * Math.PI - Math.PI / 2;
+  const x = cx + 320 * Math.cos(angle);
+  const y = cy + 180 * Math.sin(angle);
 
-  // player label inside seat
-  drawPlayerLabel(x, y, `P${i}`);
+  // Seat
+  drawSeat(x, y, false);
 
-  // hole cards below seat
-  p.forEach((c,j)=>{
-    drawCard(x - 25 + j * 30, y + 28, c);
+  // Player number inside seat
+  drawPlayerLabel(x, y - 4, `P${i}`);
+
+  // Seat name below player number
+  drawPlayerLabel(x, y + 12, seatNames[i]);
+
+  // Dealer button
+  if (i === dealerIndex) {
+    drawDealerButton(x, y);
+  }
+
+  // Hole cards
+  p.forEach((c, j) => {
+    drawCard(x - 25 + j * 30, y + 30, c);
   });
 });
+
 }
 
 function drawCard(x,y,c){
