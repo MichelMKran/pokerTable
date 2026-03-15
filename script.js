@@ -193,12 +193,56 @@ function updateTable(eq){
 // POSITIONS (CORRECT POKER LOGIC)
 // =====================================================
 function getPositions(n, dealer) {
-  const full = ["BTN","SB","BB","UTG","UTG+1","LJ","HJ","CO"];
-  const order = [];
-  for(let i=0;i<n;i++) order.push((dealer+i)%n);
-  const pos = {};
-  order.forEach((p,i)=>pos[p]=full[i]);
-  return pos;
+
+  let base;
+
+  switch(n){
+
+    case 2:
+      base = ["BTN/SB","BB"];
+      break;
+
+    case 3:
+      base = ["BTN","SB","BB"];
+      break;
+
+    case 4:
+      base = ["BTN","SB","BB","UTG"];
+      break;
+
+    case 5:
+      base = ["BTN","SB","BB","UTG","CO"];
+      break;
+
+    case 6:
+      base = ["BTN","SB","BB","UTG","HJ","CO"];
+      break;
+
+    case 7:
+      base = ["BTN","SB","BB","UTG","UTG+1","HJ","CO"];
+      break;
+
+    case 8:
+      base = ["BTN","SB","BB","UTG","UTG+1","LJ","HJ","CO"];
+      break;
+
+    case 9:
+      base = ["BTN","SB","BB","UTG","UTG+1","UTG+2","LJ","HJ","CO"];
+      break;
+
+    case 10:
+      base = ["BTN","SB","BB","UTG","UTG+1","UTG+2","UTG+3","LJ","HJ","CO"];
+      break;
+
+  }
+
+  const result = {};
+  for (let i = 0; i < n; i++) {
+    const seat = (dealer + i) % n;
+    result[seat] = base[i];
+  }
+
+  return result;
 }
 
 // =====================================================
@@ -248,16 +292,31 @@ function drawSeat(x,y){
   svg.appendChild(c);
 }
 
-function drawDealerButton(x,y){
-  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
-  c.setAttribute("cx",x+42);
-  c.setAttribute("cy",y-42);
-  c.setAttribute("r",14);
-  c.setAttribute("fill","#fff");
-  c.setAttribute("stroke","#000");
+function drawDealerButton(x, y) {
+
+  const seatRadius = 30;   // must match drawSeat()
+  const buttonRadius = 14;
+  const gap = 6;           // spacing between seat and button
+
+  const bx = x + seatRadius + gap + buttonRadius;
+  const by = y;
+
+  // button circle
+  const c = document.createElementNS(
+    "http://www.w3.org/2000/svg","circle"
+  );
+
+  c.setAttribute("cx", bx);
+  c.setAttribute("cy", by);
+  c.setAttribute("r", buttonRadius);
+  c.setAttribute("fill", "#fff");
+  c.setAttribute("stroke", "#000");
+  c.setAttribute("stroke-width", 2);
+
   svg.appendChild(c);
 
-  drawText(x+42,y-37,"D",12,"#000");
+  // D text
+  drawText(bx, by + 1, "D", 13, "#000");
 }
 
 function drawCard(x,y,c){
