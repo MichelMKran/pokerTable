@@ -1,336 +1,135 @@
-// =====================================================
-// CONFIG
-// =====================================================
-const MONTE_CARLO_ITERS = 15000;
+const MONTE_CARLO_ITERS = 50000;
 
-const RANKS = "23456789TJQKA";
-const SUITS = "shdc";
-const SUIT_SYMBOLS = { s:"♠", h:"♥", d:"♦", c:"♣" };
+const RANKS="23456789TJQKA";
+const SUITS="shdc";
+const SUIT_SYMBOLS={s:"♠",h:"♥",d:"♦",c:"♣"};
 
-// =====================================================
-// STATE
-// =====================================================
-let numPlayers = 6;
-let dealerIndex = 0;
-let players = [];
-let board = [];
-let deck = [];
+let players=[];
+let board=[];
+let deck=[];
 
-// =====================================================
-// DOM
-// =====================================================
-const svg = document.getElementById("pokerTable");
-const equityBody = document.querySelector("#equityTable tbody");
+let numPlayers=6;
+let dealerIndex=0;
 
-document.getElementById("dealHoleBtn").onclick = dealHole;
-document.getElementById("dealFlopBtn").onclick = dealFlop;
-document.getElementById("dealTurnBtn").onclick = dealTurn;
-document.getElementById("dealRiverBtn").onclick = dealRiver;
+const svg=document.getElementById("pokerTable");
+const equityBody=document.querySelector("#equityTable tbody");
 
-// =====================================================
-// DECK
-// =====================================================
-function rankVal(r){ return RANKS.indexOf(r); }
-
-function buildDeck(exclude = []) {
-  const d = [];
-  for (let r of RANKS)
-    for (let s of SUITS) {
-      const c = r + s;
-      if (!exclude.includes(c)) d.push(c);
-    }
+function buildDeck(exclude=[]){
+  const d=[];
+  for(let r of RANKS)
+  for(let s of SUITS){
+    const c=r+s;
+    if(!exclude.includes(c)) d.push(c);
+  }
   return d;
 }
 
 function shuffle(a){
-  for (let i=a.length-1;i>0;i--) {
-    const j = Math.floor(Math.random()*(i+1));
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
     [a[i],a[j]]=[a[j],a[i]];
   }
 }
 
-// =====================================================
-// DEALING
-// =====================================================
-function dealHole(){
-  numPlayers = Number(document.getElementById("players").value);
-  dealerIndex = Number(document.getElementById("dealer").value) % numPlayers;
-
-  players = Array.from({length:numPlayers},()=>[]);
-  board = [];
-
-  deck = buildDeck();
-  shuffle(deck);
-
-  let p = (dealerIndex + 1) % numPlayers;
-  for (let r=0;r<2;r++){
-    for (let i=0;i<numPlayers;i++){
-      players[p].push(deck.pop());
-      p = (p+1)%numPlayers;
-    }
-  }
-
-  drawAll();
-  runEquity();
+function rankVal(r){
+  return RANKS.indexOf(r);
 }
 
-function dealFlop(){
-  if (board.length !== 0) return;
-  deck.pop();
-  board.push(deck.pop(), deck.pop(), deck.pop());
-  drawAll();
-  runEquity();
-}
+function evaluate7(cards){
 
-function dealTurn(){
-  if (board.length !== 3) return;
-  deck.pop();
-  board.push(deck.pop());
-  drawAll();
-  runEquity();
-}
+  const rs=cards.map(c=>rankVal(c[0])).sort((a,b)=>b-a);
+  const ss=cards.map(c=>c[1]);
 
-function dealRiver(){
-  if (board.length !== 4) return;
-  deck.pop();
-  board.push(deck.pop());
-  drawAll();
-  runEquity();
-}
-
-// =====================================================
-// HAND EVALUATOR (7-card)
-// =====================================================
-function evaluate7(cards) {
-  const rs = cards.map(c=>rankVal(c[0])).sort((a,b)=>b-a);
-  const ss = cards.map(c=>c[1]);
-
-  const count = {};
+  const count={};
   rs.forEach(r=>count[r]=(count[r]||0)+1);
 
-  const groups = Object.entries(count)
-    .map(([r,c])=>({r:+r,c}))
-    .sort((a,b)=>b.c-a.c || b.r-a.r);
+  const groups=Object.entries(count)
+  .map(([r,c])=>({r:+r,c}))
+  .sort((a,b)=>b.c-a.c||b.r-a.r);
 
   function straight(arr){
     const u=[...new Set(arr)];
-    if (u[0]===12) u.push(-1);
+    if(u[0]===12)u.push(-1);
     for(let i=0;i<=u.length-5;i++)
-      if(u[i]-u[i+4]===4) return u[i];
+      if(u[i]-u[i+4]===4)return u[i];
     return null;
   }
 
   let flushSuit=null;
   for(let s of SUITS)
-    if(ss.filter(x=>x===s).length>=5) flushSuit=s;
+    if(ss.filter(x=>x===s).length>=5)flushSuit=s;
 
   if(flushSuit){
     const fr=cards.filter(c=>c[1]===flushSuit)
-      .map(c=>rankVal(c[0])).sort((a,b)=>b-a);
+    .map(c=>rankVal(c[0])).sort((a,b)=>b-a);
     const sf=straight(fr);
-    if(sf!==null) return 9e6+sf;
+    if(sf!==null)return 9e6+sf;
   }
 
-  if(groups[0].c===4) return 8e6+groups[0].r*100+groups[1].r;
-  if(groups[0].c===3 && groups[1].c>=2)
-    return 7e6+groups[0].r*100+groups[1].r;
-  if(flushSuit) return 6e6+rs.slice(0,5).reduce((a,b,i)=>a+b*15**(4-i),0);
+  if(groups[0].c===4)return 8e6+groups[0].r;
+  if(groups[0].c===3&&groups[1].c>=2)return 7e6+groups[0].r;
+  if(flushSuit)return 6e6;
   const st=straight(rs);
-  if(st!==null) return 5e6+st;
-  if(groups[0].c===3)
-    return 4e6+groups[0].r*225+groups[1].r*15+groups[2].r;
-  if(groups[0].c===2 && groups[1].c===2)
-    return 3e6+groups[0].r*225+groups[1].r*15+groups[2].r;
-  if(groups[0].c===2)
-    return 2e6+groups[0].r*3375+groups[1].r*225+groups[2].r*15+groups[3].r;
-  return rs.slice(0,5).reduce((a,b,i)=>a+b*15**(4-i),0);
+  if(st!==null)return 5e6+st;
+  if(groups[0].c===3)return 4e6+groups[0].r;
+  if(groups[0].c===2&&groups[1].c===2)return 3e6;
+  if(groups[0].c===2)return 2e6;
+
+  return rs[0];
 }
 
-// =====================================================
-// EQUITY
-// =====================================================
 function runEquity(){
-  const wins = Array(numPlayers).fill(0);
-  const known = [...board, ...players.flat()];
+
+  const wins=Array(numPlayers).fill(0);
+  const known=[...board,...players.flat()];
 
   if(board.length===5){
-    const scores = players.map(p=>evaluate7([...p,...board]));
-    const max = Math.max(...scores);
-    const n = scores.filter(s=>s===max).length;
-    updateTable(scores.map(s=>s===max?100/n:0));
+
+    const scores=players.map(p=>evaluate7([...p,...board]));
+    const max=Math.max(...scores);
+    const winners=scores.filter(s=>s===max).length;
+
+    updateTable(scores.map(s=>s===max?100/winners:0));
     return;
   }
 
   for(let i=0;i<MONTE_CARLO_ITERS;i++){
-    const d = buildDeck(known);
-    shuffle(d);
-    const b=[...board];
-    while(b.length<5) b.push(d.pop());
 
-    const scores = players.map(p=>evaluate7([...p,...b]));
-    const max = Math.max(...scores);
-    const n = scores.filter(s=>s===max).length;
-    scores.forEach((s,i)=>{ if(s===max) wins[i]+=1/n; });
+    const d=buildDeck(known);
+    shuffle(d);
+
+    const b=[...board];
+    while(b.length<5)b.push(d.pop());
+
+    const scores=players.map(p=>evaluate7([...p,...b]));
+    const max=Math.max(...scores);
+    const winners=scores.filter(s=>s===max).length;
+
+    scores.forEach((s,i)=>{
+      if(s===max)wins[i]+=1/winners;
+    });
   }
 
   updateTable(wins.map(w=>w/MONTE_CARLO_ITERS*100));
 }
 
 function updateTable(eq){
+
   equityBody.innerHTML="";
+
   players.forEach((p,i)=>{
+
     const tr=document.createElement("tr");
+
     tr.innerHTML=`
-      <td>P${i}</td>
-      <td>${p.map(c=>c[0]+SUIT_SYMBOLS[c[1]]).join(" ")}</td>
-      <td>${eq[i].toFixed(1)}%</td>
+    <td>P${i}</td>
+    <td>${p.map(c=>c[0]+SUIT_SYMBOLS[c[1]]).join(" ")}</td>
+    <td>${eq?eq[i].toFixed(1)+"%":"--"}</td>
+    <td>${Game.playersData[i].stack}</td>
     `;
+
     equityBody.appendChild(tr);
   });
-}
-
-// =====================================================
-// POSITIONS (CORRECT POKER LOGIC)
-// =====================================================
-function getPositions(n, dealer) {
-
-  let base;
-
-  switch(n){
-
-    case 2:
-      base = ["BTN/SB","BB"];
-      break;
-
-    case 3:
-      base = ["BTN","SB","BB"];
-      break;
-
-    case 4:
-      base = ["BTN","SB","BB","UTG"];
-      break;
-
-    case 5:
-      base = ["BTN","SB","BB","UTG","CO"];
-      break;
-
-    case 6:
-      base = ["BTN","SB","BB","UTG","HJ","CO"];
-      break;
-
-    case 7:
-      base = ["BTN","SB","BB","UTG","UTG+1","HJ","CO"];
-      break;
-
-    case 8:
-      base = ["BTN","SB","BB","UTG","UTG+1","LJ","HJ","CO"];
-      break;
-
-    case 9:
-      base = ["BTN","SB","BB","UTG","UTG+1","UTG+2","LJ","HJ","CO"];
-      break;
-
-    case 10:
-      base = ["BTN","SB","BB","UTG","UTG+1","UTG+2","UTG+3","LJ","HJ","CO"];
-      break;
-
-  }
-
-  const result = {};
-  for (let i = 0; i < n; i++) {
-    const seat = (dealer + i) % n;
-    result[seat] = base[i];
-  }
-
-  return result;
-}
-
-// =====================================================
-// DRAWING
-// =====================================================
-function drawAll(){
-  svg.innerHTML="";
-  const w=900,h=600,cx=w/2,cy=h/2;
-  svg.setAttribute("width",w);
-  svg.setAttribute("height",h);
-
-  const table=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
-  table.setAttribute("cx",cx);
-  table.setAttribute("cy",cy);
-  table.setAttribute("rx",360);
-  table.setAttribute("ry",210);
-  table.setAttribute("fill","#0b5133");
-  svg.appendChild(table);
-
-  board.forEach((c,i)=>drawCard(cx-110+i*55,cy-30,c));
-
-  const positions = getPositions(numPlayers, dealerIndex);
-
-  players.forEach((p,i)=>{
-    const a=i/numPlayers*2*Math.PI-Math.PI/2;
-    const x=cx+330*Math.cos(a);
-    const y=cy+190*Math.sin(a);
-
-    drawSeat(x,y);
-    drawText(x,y-6,`P${i}`,13);
-    drawText(x,y+12,positions[i],11);
-
-    if(i===dealerIndex) drawDealerButton(x,y);
-
-    p.forEach((c,j)=>drawCard(x-28+j*32,y+34,c));
-  });
-}
-
-function drawSeat(x,y){
-  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
-  c.setAttribute("cx",x);
-  c.setAttribute("cy",y);
-  c.setAttribute("r",30);
-  c.setAttribute("fill","#444");
-  c.setAttribute("stroke","#fff");
-  c.setAttribute("stroke-width",2);
-  svg.appendChild(c);
-}
-
-function drawDealerButton(x, y) {
-
-  const seatRadius = 30;   // must match drawSeat()
-  const buttonRadius = 14;
-  const gap = 6;           // spacing between seat and button
-
-  const bx = x + seatRadius + gap + buttonRadius;
-  const by = y;
-
-  // button circle
-  const c = document.createElementNS(
-    "http://www.w3.org/2000/svg","circle"
-  );
-
-  c.setAttribute("cx", bx);
-  c.setAttribute("cy", by);
-  c.setAttribute("r", buttonRadius);
-  c.setAttribute("fill", "#fff");
-  c.setAttribute("stroke", "#000");
-  c.setAttribute("stroke-width", 2);
-
-  svg.appendChild(c);
-
-  // D text
-  drawText(bx, by + 1, "D", 13, "#000");
-}
-
-function drawCard(x,y,c){
-  const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
-  r.setAttribute("x",x);
-  r.setAttribute("y",y);
-  r.setAttribute("width",40);
-  r.setAttribute("height",60);
-  r.setAttribute("rx",5);
-  r.setAttribute("fill","#fff");
-  svg.appendChild(r);
-
-  drawText(x+20,y+35,c[0]+SUIT_SYMBOLS[c[1]],14,
-    ["h","d"].includes(c[1])?"red":"black");
 }
 
 function drawText(x,y,text,size,color="#fff"){
@@ -344,3 +143,213 @@ function drawText(x,y,text,size,color="#fff"){
   t.textContent=text;
   svg.appendChild(t);
 }
+
+function drawSeat(x,y){
+
+  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+
+  c.setAttribute("cx",x);
+  c.setAttribute("cy",y);
+  c.setAttribute("r",32);
+  c.setAttribute("fill","#444");
+  c.setAttribute("stroke","#fff");
+
+  svg.appendChild(c);
+}
+
+function drawDealer(x,y){
+
+  const r=16;
+
+  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+
+  c.setAttribute("cx",x+48);
+  c.setAttribute("cy",y);
+  c.setAttribute("r",r);
+  c.setAttribute("fill","#fff");
+
+  svg.appendChild(c);
+
+  drawText(x+48,y,"D",14,"black");
+}
+
+function drawCard(x,y,c){
+
+  const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
+
+  r.setAttribute("x",x);
+  r.setAttribute("y",y);
+  r.setAttribute("width",40);
+  r.setAttribute("height",60);
+  r.setAttribute("rx",6);
+  r.setAttribute("fill","#fff");
+
+  svg.appendChild(r);
+
+  drawText(
+  x+20,
+  y+32,
+  c[0]+SUIT_SYMBOLS[c[1]],
+  15,
+  ["h","d"].includes(c[1])?"red":"black"
+  );
+}
+
+function getPositions(n,dealer){
+
+  const map={
+  2:["BTN/SB","BB"],
+  3:["BTN","SB","BB"],
+  4:["BTN","SB","BB","UTG"],
+  5:["BTN","SB","BB","UTG","CO"],
+  6:["BTN","SB","BB","UTG","HJ","CO"],
+  7:["BTN","SB","BB","UTG","UTG+1","HJ","CO"],
+  8:["BTN","SB","BB","UTG","UTG+1","LJ","HJ","CO"],
+  9:["BTN","SB","BB","UTG","UTG+1","UTG+2","LJ","HJ","CO"],
+  10:["BTN","SB","BB","UTG","UTG+1","UTG+2","UTG+3","LJ","HJ","CO"]
+  };
+
+  const base=map[n];
+  const result={};
+
+  for(let i=0;i<n;i++)
+    result[(dealer+i)%n]=base[i];
+
+  return result;
+}
+
+function drawAll(){
+
+  svg.innerHTML="";
+
+  const cx=450;
+  const cy=300;
+
+  const pos=getPositions(numPlayers,dealerIndex);
+
+  board.forEach((c,i)=>drawCard(cx-110+i*55,cy-30,c));
+
+  players.forEach((p,i)=>{
+
+    const angle=i/numPlayers*2*Math.PI-Math.PI/2;
+
+    const x=cx+330*Math.cos(angle);
+    const y=cy+190*Math.sin(angle);
+
+    drawSeat(x,y);
+
+    drawText(x,y-6,"P"+i,13);
+    drawText(x,y+12,pos[i],11);
+
+    if(i===dealerIndex)drawDealer(x,y);
+
+    p.forEach((c,j)=>drawCard(x-28+j*32,y+36,c));
+  });
+}
+
+const Game={
+
+playersData:[],
+pot:0,
+currentBet:0,
+minRaise:0,
+street:"",
+
+blinds:[
+{sb:10,bb:20},
+{sb:20,bb:40},
+{sb:40,bb:80},
+{sb:80,bb:160}
+],
+
+blindLevel:0,
+
+initPlayers(){
+
+numPlayers=Number(document.getElementById("players").value);
+dealerIndex=Number(document.getElementById("dealer").value)%numPlayers;
+
+players=[];
+board=[];
+
+for(let i=0;i<numPlayers;i++)
+players.push([]);
+
+this.playersData=[];
+
+for(let i=0;i<numPlayers;i++)
+this.playersData.push({
+stack:2000,
+bet:0,
+folded:false
+});
+
+},
+
+startHand(){
+
+this.initPlayers();
+
+deck=buildDeck();
+shuffle(deck);
+
+this.postBlinds();
+
+let pos=(dealerIndex+1)%numPlayers;
+
+for(let r=0;r<2;r++)
+for(let i=0;i<numPlayers;i++){
+players[pos].push(deck.pop());
+pos=(pos+1)%numPlayers;
+}
+
+this.street="preflop";
+
+drawAll();
+runEquity();
+updateTable();
+
+},
+
+postBlinds(){
+
+const {sb,bb}=this.blinds[this.blindLevel];
+
+const sbSeat=(dealerIndex+1)%numPlayers;
+const bbSeat=(dealerIndex+2)%numPlayers;
+
+this.bet(sbSeat,sb);
+this.bet(bbSeat,bb);
+
+this.currentBet=bb;
+this.minRaise=bb;
+
+},
+
+bet(seat,amount){
+
+const p=this.playersData[seat];
+
+const a=Math.min(amount,p.stack);
+
+p.stack-=a;
+p.bet+=a;
+this.pot+=a;
+
+},
+
+check(){alert("check");},
+call(){alert("call");},
+fold(){alert("fold");},
+
+raisePrompt(){
+
+const amt=Number(prompt("Raise amount"));
+
+if(!amt)return;
+
+alert("raise "+amt);
+
+}
+
+};

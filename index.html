@@ -1,34 +1,94 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Poker Table Simulator</title>
-<link rel="stylesheet" href="style.css">
+<title>Poker Table</title>
+
+<style>
+body{
+  background:#0b3d2e;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+}
+
+#table{
+  position:relative;
+  width:900px;
+  height:650px;
+  margin:20px auto;
+  background:#146b4a;
+  border-radius:50%;
+}
+
+.seat{
+  position:absolute;
+  width:120px;
+  text-align:center;
+}
+
+.player{
+  background:#1e1e1e;
+  padding:6px;
+  border-radius:8px;
+}
+
+.position{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:#2c8f6a;
+  line-height:44px;
+  margin:4px auto;
+  font-weight:bold;
+}
+
+.dealer{
+  position:absolute;
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  background:white;
+  color:black;
+  font-weight:bold;
+  line-height:32px;
+  font-size:14px;
+}
+
+#controls button{
+  margin:5px;
+  padding:10px 14px;
+  font-size:16px;
+}
+
+#info{
+  margin-top:10px;
+}
+</style>
 </head>
+
 <body>
 
-<div id="controls">
-  Players: <input type="number" id="players" value="6" min="2" max="10">
-  Dealer: <input type="number" id="dealer" value="0" min="0">
-  <button id="dealHoleBtn">Deal Hole Cards</button>
-  <button id="dealFlopBtn">Deal Flop</button>
-  <button id="dealTurnBtn">Deal Turn</button>
-  <button id="dealRiverBtn">Deal River</button>
+<h2>Poker Table</h2>
+
+<div id="table"></div>
+
+<div id="info">
+Street: <span id="street">Preflop</span> |
+Pot: <span id="pot">0</span> |
+Blinds: <span id="blinds">10 / 20</span> |
+Timer: <span id="timer">11:00</span>
 </div>
 
-<svg id="pokerTable"></svg>
+<div id="controls">
+<button onclick="action('check')">Check</button>
+<button onclick="action('call')">Call</button>
+<button onclick="action('fold')">Fold</button>
+<button onclick="action('bet')">Bet</button>
+<button onclick="action('raise')">Raise</button>
+</div>
 
-<table id="equityTable">
-  <thead>
-    <tr><th>Player</th><th>Cards</th><th>Equity</th></tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<script src="poker.js"></script>
 
-<!-- Load poker-evaluator locally -->
-<script src="poker-evaluator.js"></script>
-<script src="script.js"></script>
 </body>
 </html>
